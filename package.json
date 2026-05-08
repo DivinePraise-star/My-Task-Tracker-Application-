@@ -1,0 +1,17 @@
+{
+  "name": "my-task-tracker-application-",
+  "version": "1.0.0",
+  "description": "A web based application to maintain and manage my daily tasks.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "nodemailer": "^8.0.7"
+  }
+}
