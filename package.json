@@ -1,5 +1,5 @@
 {
-  "name": "my-task-tracker-application-",
+  "name": "my-task-tracker-application",
   "version": "1.0.0",
   "description": "A web based application to maintain and manage my daily tasks.",
   "main": "src/server.js",
