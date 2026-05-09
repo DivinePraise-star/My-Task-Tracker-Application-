@@ -9,13 +9,15 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22
-      - key: DATA_DIR
-        value: /var/data
+      - key: DATABASE_URL
+        sync: false
       - key: REMINDER_DAYS_AHEAD
         value: "1"
       - key: REMINDER_INTERVAL_MINUTES
         value: "15"
       - key: ALERT_SENDER_EMAIL
+        sync: false
+      - key: ALLOWED_ORIGIN
         sync: false
       - key: SMTP_HOST
         value: smtp.gmail.com
@@ -25,7 +27,3 @@ services:
         sync: false
       - key: SMTP_PASS
         sync: false
-    disk:
-      name: task-tracker-data
-      mountPath: /var/data
-      sizeGB: 1

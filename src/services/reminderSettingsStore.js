@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const { ensureSchema, getPool, isDatabaseConfigured, mapReminderSettingsRow } = require("./database");
 
 function normalizeReminderSettings(input = {}, defaults = {}) {
   const enabled =
@@ -35,6 +36,7 @@ class ReminderSettingsStore {
       daysAhead: 1,
       intervalMinutes: 60
     });
+    this.useDatabase = isDatabaseConfigured();
   }
 
   async #ensureFile() {
@@ -47,6 +49,19 @@ class ReminderSettingsStore {
   }
 
   async getSettings() {
+    if (this.useDatabase) {
+      await ensureSchema();
+      const { rows } = await getPool().query(
+        `SELECT enabled, days_ahead, interval_minutes FROM reminder_settings WHERE id = 1`
+      );
+
+      if (!rows[0]) {
+        return this.defaults;
+      }
+
+      return normalizeReminderSettings(mapReminderSettingsRow(rows[0], this.defaults), this.defaults);
+    }
+
     await this.#ensureFile();
     const raw = await fs.readFile(this.filePath, "utf8");
 
@@ -59,6 +74,27 @@ class ReminderSettingsStore {
   }
 
   async updateSettings(partial) {
+    if (this.useDatabase) {
+      await ensureSchema();
+      const next = normalizeReminderSettings(partial, this.defaults);
+      const { rows } = await getPool().query(
+        `
+          INSERT INTO reminder_settings (id, enabled, days_ahead, interval_minutes, updated_at)
+          VALUES (1, $1, $2, $3, NOW())
+          ON CONFLICT (id)
+          DO UPDATE SET
+            enabled = EXCLUDED.enabled,
+            days_ahead = EXCLUDED.days_ahead,
+            interval_minutes = EXCLUDED.interval_minutes,
+            updated_at = NOW()
+          RETURNING enabled, days_ahead, interval_minutes
+        `,
+        [next.enabled, next.daysAhead, next.intervalMinutes]
+      );
+
+      return normalizeReminderSettings(mapReminderSettingsRow(rows[0], this.defaults), this.defaults);
+    }
+
     const current = await this.getSettings();
     const next = normalizeReminderSettings({ ...current, ...partial }, this.defaults);
     await fs.writeFile(this.filePath, JSON.stringify(next, null, 2), "utf8");
