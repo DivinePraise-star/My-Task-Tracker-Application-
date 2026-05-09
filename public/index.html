@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Tracker — Lightweight</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <div class="brand">
+          <div class="logo">TT</div>
+          <div>
+            <div class="title">Task Tracker</div>
+            <div class="subtitle">Lightweight, privacy-friendly task manager</div>
+          </div>
+        </div>
+      </header>
+
+      <div class="grid">
+        <section class="card" id="listCard">
+          <h2>Current Tasks</h2>
+          <div id="tasksContainer"></div>
+        </section>
+
+        <aside class="card">
+          <h2>Add a Task</h2>
+          <form id="taskForm" class="form-grid">
+            <label>Title<input required name="title" maxlength="120" /></label>
+            <label>Description<textarea name="description" rows="3" maxlength="500"></textarea></label>
+            <label>Due date<input type="date" name="dueDate" /></label>
+            <label>Alert email<input type="email" name="recipientEmail" placeholder="name@example.com" /></label>
+            <div class="controls">
+              <button type="submit">Create Task</button>
+              <button type="button" class="btn-ghost" id="clearBtn">Clear All</button>
+            </div>
+          </form>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const STORAGE_KEY = 'task-tracker.tasks.v1';
+
+      function loadTasks(){
+        try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }catch(e){return[]}
+      }
+      function saveTasks(tasks){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)) }
+
+      function render(){
+        const container = document.getElementById('tasksContainer');
+        const tasks = loadTasks();
+        if(!tasks.length){ container.innerHTML = '<div class="empty">No tasks yet — add one on the right.</div>'; return }
+
+        const rows = tasks.map((t, i) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem 0;border-bottom:1px solid rgba(255,255,255,0.03)">
+            <div>
+              <div style="font-weight:700">${escape(t.title)}</div>
+              <div class="muted">${escape(t.description||'—')}</div>
+              <div class="muted">Due: ${escape(t.dueDate||'—')} • ${escape(t.recipientEmail||'—')}</div>
+            </div>
+            <div style="display:flex;gap:.5rem">
+              <button class="btn-ghost" data-index="${i}">Delete</button>
+            </div>
+          </div>`).join('');
+
+        container.innerHTML = rows;
+        container.querySelectorAll('button[data-index]').forEach(btn => btn.addEventListener('click', (e)=>{
+          const idx = Number(e.currentTarget.dataset.index);
+          const t = loadTasks(); t.splice(idx,1); saveTasks(t); render();
+        }));
+      }
+
+      function escape(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;") }
+
+      document.getElementById('taskForm').addEventListener('submit', e=>{
+        e.preventDefault();
+        const f = e.currentTarget;
+        const data = { title: f.title.value.trim(), description: f.description.value.trim(), dueDate: f.dueDate.value, recipientEmail: f.recipientEmail.value.trim() };
+        if(!data.title){ alert('Title is required'); return }
+        const tasks = loadTasks(); tasks.unshift(data); saveTasks(tasks); f.reset(); render();
+      });
+
+      document.getElementById('clearBtn').addEventListener('click', ()=>{ if(confirm('Clear all tasks?')){ localStorage.removeItem(STORAGE_KEY); render() } });
+
+      render();
+    </script>
+  </body>
+</html>
