@@ -44,6 +44,21 @@ class EmailNotifier {
 
     return { sent: true };
   }
+
+  async sendTaskReminder(task) {
+    if (!task.recipientEmail || !task.dueDate) {
+      return { sent: false, reason: "Missing recipient email or due date." };
+    }
+
+    await this.transport.sendMail({
+      from: this.senderEmail,
+      to: task.recipientEmail,
+      subject: `Reminder: ${task.title} is due on ${task.dueDate}`,
+      text: `Task reminder\n\nTitle: ${task.title}\nDescription: ${task.description || "N/A"}\nDue date: ${task.dueDate}`
+    });
+
+    return { sent: true };
+  }
 }
 
 module.exports = { EmailNotifier };

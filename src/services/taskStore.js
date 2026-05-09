@@ -31,6 +31,39 @@ class TaskStore {
     return this.#readTasks();
   }
 
+  async listPendingReminderTasks({ dueWithinDays = 1, now = new Date() } = {}) {
+    const tasks = await this.#readTasks();
+    const todayIso = now.toISOString().slice(0, 10);
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() + Number(dueWithinDays));
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+
+    return tasks.filter(
+      (task) =>
+        Boolean(task.recipientEmail) &&
+        Boolean(task.dueDate) &&
+        !task.reminderSentAt &&
+        task.dueDate >= todayIso &&
+        task.dueDate <= cutoffIso
+    );
+  }
+
+  async markReminderSent(taskId, sentAt = new Date().toISOString()) {
+    const tasks = await this.#readTasks();
+    const taskIndex = tasks.findIndex((task) => task.id === taskId);
+    if (taskIndex < 0) {
+      return false;
+    }
+
+    tasks[taskIndex] = {
+      ...tasks[taskIndex],
+      reminderSentAt: sentAt
+    };
+
+    await fs.writeFile(this.filePath, JSON.stringify(tasks, null, 2), "utf8");
+    return true;
+  }
+
   async addTask(taskInput) {
     if (!taskInput?.title?.trim()) {
       throw new Error("Task title is required.");
@@ -43,7 +76,8 @@ class TaskStore {
       description: taskInput.description?.trim() || "",
       dueDate: taskInput.dueDate || null,
       recipientEmail: taskInput.recipientEmail?.trim() || "",
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      reminderSentAt: null
     };
 
     tasks.unshift(task);

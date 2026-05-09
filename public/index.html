@@ -25,6 +25,17 @@
         </section>
 
         <aside class="card">
+          <h2>Backend Connection</h2>
+          <form id="backendForm" class="form-grid" style="margin-bottom:1rem">
+            <label>Backend URL
+              <input id="backendUrl" type="url" placeholder="https://your-backend.onrender.com" />
+            </label>
+            <div class="controls">
+              <button type="submit">Save Backend URL</button>
+            </div>
+            <div class="muted" id="backendMode">Mode: Local only</div>
+          </form>
+
           <h2>Add a Task</h2>
           <form id="taskForm" class="form-grid">
             <label>Title<input required name="title" maxlength="120" /></label>
@@ -42,15 +53,77 @@
 
     <script>
       const STORAGE_KEY = 'task-tracker.tasks.v1';
+      const API_URL_KEY = 'task-tracker.api-base-url.v1';
+
+      function normalizeBaseUrl(value=''){
+        return String(value || '').trim().replace(/\/$/, '');
+      }
+
+      function getApiBaseUrl(){
+        return normalizeBaseUrl(localStorage.getItem(API_URL_KEY) || '');
+      }
+
+      function setBackendModeLabel(){
+        const modeEl = document.getElementById('backendMode');
+        const baseUrl = getApiBaseUrl();
+        modeEl.textContent = baseUrl ? `Mode: Connected to ${baseUrl}` : 'Mode: Local only';
+      }
+
+      async function fetchJson(url, options){
+        const response = await fetch(url, options);
+        if(!response.ok){
+          let message = 'Request failed';
+          try{
+            const errorBody = await response.json();
+            message = errorBody.message || message;
+          }catch(_error){}
+          throw new Error(message);
+        }
+
+        return response.json();
+      }
 
       function loadTasks(){
         try{ return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') }catch(e){return[]}
       }
       function saveTasks(tasks){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)) }
 
-      function render(){
+      async function loadTasksFromBackend(){
+        const baseUrl = getApiBaseUrl();
+        if(!baseUrl){
+          return loadTasks();
+        }
+
+        return fetchJson(`${baseUrl}/api/tasks`);
+      }
+
+      async function createTaskInBackend(data){
+        const baseUrl = getApiBaseUrl();
+        if(!baseUrl){
+          const tasks = loadTasks();
+          tasks.unshift(data);
+          saveTasks(tasks);
+          return;
+        }
+
+        await fetchJson(`${baseUrl}/api/tasks`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      }
+
+      async function render(){
         const container = document.getElementById('tasksContainer');
-        const tasks = loadTasks();
+        let tasks = [];
+
+        try{
+          tasks = await loadTasksFromBackend();
+        }catch(error){
+          container.innerHTML = `<div class="empty">Could not load backend tasks: ${escape(error.message)}</div>`;
+          return;
+        }
+
         if(!tasks.length){ container.innerHTML = '<div class="empty">No tasks yet — add one on the right.</div>'; return }
 
         const rows = tasks.map((t, i) => `
@@ -67,6 +140,10 @@
 
         container.innerHTML = rows;
         container.querySelectorAll('button[data-index]').forEach(btn => btn.addEventListener('click', (e)=>{
+          if(getApiBaseUrl()){
+            alert('Delete is only available in local mode right now.');
+            return;
+          }
           const idx = Number(e.currentTarget.dataset.index);
           const t = loadTasks(); t.splice(idx,1); saveTasks(t); render();
         }));
@@ -74,16 +151,49 @@
 
       function escape(s=''){ return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'","&#039;") }
 
+      document.getElementById('backendForm').addEventListener('submit', (e)=>{
+        e.preventDefault();
+        const input = document.getElementById('backendUrl');
+        const value = normalizeBaseUrl(input.value);
+        if(value){
+          localStorage.setItem(API_URL_KEY, value);
+        }else{
+          localStorage.removeItem(API_URL_KEY);
+        }
+        setBackendModeLabel();
+        render();
+      });
+
       document.getElementById('taskForm').addEventListener('submit', e=>{
         e.preventDefault();
         const f = e.currentTarget;
         const data = { title: f.title.value.trim(), description: f.description.value.trim(), dueDate: f.dueDate.value, recipientEmail: f.recipientEmail.value.trim() };
         if(!data.title){ alert('Title is required'); return }
-        const tasks = loadTasks(); tasks.unshift(data); saveTasks(tasks); f.reset(); render();
+
+        createTaskInBackend(data)
+          .then(()=>{
+            f.reset();
+            render();
+          })
+          .catch((error)=>{
+            alert(`Could not create task: ${error.message}`);
+          });
       });
 
-      document.getElementById('clearBtn').addEventListener('click', ()=>{ if(confirm('Clear all tasks?')){ localStorage.removeItem(STORAGE_KEY); render() } });
+      document.getElementById('clearBtn').addEventListener('click', ()=>{
+        if(getApiBaseUrl()){
+          alert('Clear all is only available in local mode right now.');
+          return;
+        }
 
+        if(confirm('Clear all tasks?')){
+          localStorage.removeItem(STORAGE_KEY);
+          render();
+        }
+      });
+
+      document.getElementById('backendUrl').value = getApiBaseUrl();
+      setBackendModeLabel();
       render();
     </script>
   </body>
